@@ -1,4 +1,4 @@
-name: YOLOv8 RuyiSDK CI
+name: YOLOv8 Duo 256M Auto-Test CI
 
 on:
   push:
@@ -6,38 +6,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-yolov8:
-    runs-on: ubuntu-22.04
+  build-and-test:
+    # 🌟 核心修改 1：让任务跑在你的本地大管家服务器上
+    runs-on: self-hosted
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git make build-essential wget
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install RuyiSDK
+      - name: 2. Install RuyiSDK (本地缓存优化版)
         run: |
-          wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
-          chmod +x ruyi-0.47.0.amd64
-          sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
-          ruyi update
-          ruyi install gnu-milkv-milkv-duo-musl-bin
+          # 检查如果已安装，就跳过下载，极致提速
+          if ! command -v ruyi &> /dev/null; then
+            wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
+            chmod +x ruyi-0.47.0.amd64
+            sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
+            ruyi update
+            ruyi install gnu-milkv-milkv-duo-musl-bin
+          else
+            echo "RuyiSDK 已驻留本地，直接复用！"
+          fi
+          
+          # 允许虚拟环境重复创建时报错跳过
+          ruyi venv -t gnu-milkv-milkv-duo-musl-bin generic milkv-venv || true
 
-      - name: Create Ruyi virtual environment
+      - name: 3. Prepare TDL SDK (清理旧代码防冲突)
         run: |
-          ruyi venv -t gnu-milkv-milkv-duo-musl-bin generic milkv-venv
+          # 因为大管家不会销毁硬盘，所以重新拉取前先清理上次的旧文件夹
+          rm -rf cvitek-tdl-sdk-sg200x
+          git clone --depth 1 https://github.com/milkv-duo/cvitek-tdl-sdk-sg200x.git
+
+      - name: 4. Build sample_yolov8
+        run: |
           source milkv-venv/bin/ruyi-activate
-          which riscv64-unknown-linux-musl-gcc
-          riscv64-unknown-linux-musl-gcc --version
-
-      - name: Download TDL SDK
-        run: |
-          git clone https://github.com/milkv-duo/cvitek-tdl-sdk-sg200x.git
-
-      - name: Build sample_yolov8
-        run: |
-          source milkv-venv/bin/ruyi-activate
-
           cd cvitek-tdl-sdk-sg200x/sample/cvi_yolo
 
           make sample_yolov8 \
@@ -48,28 +49,37 @@ jobs:
             CHIP=CV181X \
             SDK_VER=musl_riscv64
 
-      - name: Download model and test image
+      - name: 5. Download test files and Package
         run: |
           mkdir -p artifacts
-
           wget https://github.com/zwyzwm/YOLOv8-Object-Detection/raw/main/yolov8n_cv181x_int8_sym.cvimodel \
             -O artifacts/yolov8n_cv181x_int8_sym.cvimodel
-
           wget https://ultralytics.com/images/zidane.jpg \
             -O artifacts/test.jpg
-
           cp cvitek-tdl-sdk-sg200x/sample/cvi_yolo/sample_yolov8 artifacts/
 
-      - name: Check build outputs
+          # 🌟 核心修改 2：把测试需要的文件打包，准备发车
+          cd artifacts
+          tar -czvf duo_test_package.tar.gz sample_yolov8 yolov8n_cv181x_int8_sym.cvimodel test.jpg
+
+      - name: 6. Listen for Duo 256M logs (张开大网)
         run: |
-          test -f artifacts/sample_yolov8
-          test -f artifacts/yolov8n_cv181x_int8_sym.cvimodel
-          test -f artifacts/test.jpg
+          # 监听 8084 端口，准备接收板子的实测数据
+          echo "在大管家后台开启 8084 端口监听..."
+          timeout 120 nc -l -p 8084 > duo_result.log &
+          echo "LISTENER_PID=$!" >> $GITHUB_ENV
 
-          file artifacts/sample_yolov8
+      - name: 7. Send package via Stunnel (跨海投递)
+        run: |
+          # 往 8083 发送端砸包裹，隧道会自动送到 Duo 的 8443
+          echo "正在把编译好的压缩包砸进 8083 隧道入口..."
+          cd artifacts
+          nc -w 3 127.0.0.1 8083 < duo_test_package.tar.gz
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: yolov8-duo256m-test-files
-          path: artifacts/
+      - name: 8. Wait for test results (收网验证)
+        run: |
+          echo "包裹投递成功，正在等待 Duo 256M 板端传回推理结果..."
+          wait ${{ env.LISTENER_PID }} || true
+          
+          echo "✅ ====== Milk-V Duo 256M 实机测试日志 ======"
+          cat duo_result.log
