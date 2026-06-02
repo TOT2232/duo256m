@@ -7,16 +7,14 @@ on:
 
 jobs:
   build-and-test:
-    # 🌟 核心修改 1：让任务跑在你的本地大管家服务器上
     runs-on: self-hosted
 
     steps:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2. Install RuyiSDK (本地缓存优化版)
+      - name: 2. Install RuyiSDK 
         run: |
-          # 检查如果已安装，就跳过下载，极致提速
           if ! command -v ruyi &> /dev/null; then
             wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
             chmod +x ruyi-0.47.0.amd64
@@ -27,12 +25,10 @@ jobs:
             echo "RuyiSDK 已驻留本地，直接复用！"
           fi
           
-          # 允许虚拟环境重复创建时报错跳过
           ruyi venv -t gnu-milkv-milkv-duo-musl-bin generic milkv-venv || true
 
-      - name: 3. Prepare TDL SDK (清理旧代码防冲突)
+      - name: 3. Prepare TDL SDK
         run: |
-          # 因为大管家不会销毁硬盘，所以重新拉取前先清理上次的旧文件夹
           rm -rf cvitek-tdl-sdk-sg200x
           git clone --depth 1 https://github.com/milkv-duo/cvitek-tdl-sdk-sg200x.git
 
@@ -58,7 +54,6 @@ jobs:
             -O artifacts/test.jpg
           cp cvitek-tdl-sdk-sg200x/sample/cvi_yolo/sample_yolov8 artifacts/
 
-          # 🌟 核心修改 2：把测试需要的文件打包，准备发车
           cd artifacts
           tar -czvf duo_test_package.tar.gz sample_yolov8 yolov8n_cv181x_int8_sym.cvimodel test.jpg
 
