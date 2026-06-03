@@ -74,7 +74,9 @@ jobs:
       - name: 8. Wait for test results 
         run: |
           echo "包裹投递成功，正在等待 Duo 256M 板端传回推理结果..."
-          wait ${{ env.LISTENER_PID }} || true
+          while kill -0 ${{ env.LISTENER_PID }} 2>/dev/null; do
+            sleep 2
+          done
           
           echo "✅ ====== Milk-V Duo 256M 实机测试日志 ======"
           cat duo_result.log
