@@ -59,14 +59,12 @@ jobs:
 
       - name: 6. Listen for Duo 256M logs
         run: |
-          # 监听 8084 端口，准备接收板子的实测数据
-          echo "在大管家后台开启 8084 端口监听..."
+          echo "后台开启 8084 端口监听..."
           timeout 120 nc -l -p 8084 > duo_result.log &
           echo "LISTENER_PID=$!" >> $GITHUB_ENV
 
       - name: 7. Send package via Stunnel 
         run: |
-          # 往 8083 发送端砸包裹，隧道会自动送到 Duo 的 8443
           echo "正在把编译好的压缩包砸进 8083 隧道入口..."
           cd artifacts
           nc -w 3 127.0.0.1 8083 < duo_test_package.tar.gz
