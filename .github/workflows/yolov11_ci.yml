@@ -19,30 +19,28 @@ jobs:
           sudo apt update
           sudo apt install -y git make build-essential wget
 
-      - name: Install RuyiSDK
+      - name: 2. Install RuyiSDK 
         run: |
-          wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
-          chmod +x ruyi-0.47.0.amd64
-          sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
-          ruyi --version
-
-      - name: Install Duo 256M toolchain if needed
-        run: |
-          if ruyi list | grep -q "gnu-milkv-milkv-duo-musl-bin"; then
-            echo "Toolchain already installed, skip ruyi update/install"
-          else
+          if ! command -v ruyi &> /dev/null; then
+            wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
+            chmod +x ruyi-0.47.0.amd64
+            # 既然咱们已经配置了 ci-runner 的 sudo 免密，这里可以直接放心用 sudo
+            sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
+            
+            # 使用国内镜像源防止拉取工具链失败
+            git config --global url."https://mirror.ghproxy.com/https://github.com/".insteadOf "https://github.com/"
             ruyi update
             ruyi install gnu-milkv-milkv-duo-musl-bin
+            git config --global --unset url."https://mirror.ghproxy.com/https://github.com/".insteadOf
+          else
+            echo "RuyiSDK 已驻留本地，直接复用！"
           fi
-        
-      - name: Create Ruyi virtual environment
-        run: |
+          
           if [ ! -d "milkv-venv" ]; then
             ruyi venv -t gnu-milkv-milkv-duo-musl-bin generic milkv-venv
           else
-            echo "milkv-venv already exists, reuse it"
+            echo "milkv-venv 交叉编译环境已存在，跳过创建。"
           fi
-
       - name: Verify toolchain
         run: |
           source milkv-venv/bin/ruyi-activate
