@@ -47,12 +47,13 @@ jobs:
       - name: Build sample_yolov8 for YOLOv11
         run: |
           source milkv-venv/bin/ruyi-activate
-          cd cvitek-tdl-sdk-sg200x/sample/cvi_yolo
+          SDK_PATH="$GITHUB_WORKSPACE/cvitek-tdl-sdk-sg200x"
+          cd "$SDK_PATH/sample/cvi_yolo"
           make sample_yolov8 \
-            KERNEL_ROOT=$HOME/cvitek-tdl-sdk-sg200x/sample \
-            MW_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/middleware/v2 \
-            TPU_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/tpu \
-            IVE_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/middleware/v2 \
+            KERNEL_ROOT="$SDK_PATH/sample" \
+            MW_PATH="$SDK_PATH/sample/3rd/middleware/v2" \
+            TPU_PATH="$SDK_PATH/sample/3rd/tpu" \
+            IVE_PATH="$SDK_PATH/sample/3rd/middleware/v2" \
             CHIP=CV181X \
             SDK_VER=musl_riscv64
 
