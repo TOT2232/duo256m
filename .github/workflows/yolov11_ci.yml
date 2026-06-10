@@ -26,14 +26,15 @@ jobs:
           sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
           ruyi --version
 
-      - name: Update Ruyi repository
+      - name: Install Duo 256M toolchain if needed
         run: |
-          ruyi update
-
-      - name: Install Duo 256M toolchain
-        run: |
-          ruyi install gnu-milkv-milkv-duo-musl-bin
-
+          if ruyi list | grep -q "gnu-milkv-milkv-duo-musl-bin"; then
+            echo "Toolchain already installed, skip ruyi update/install"
+          else
+            ruyi update
+            ruyi install gnu-milkv-milkv-duo-musl-bin
+          fi
+        
       - name: Create Ruyi virtual environment
         run: |
           if [ ! -d "milkv-venv" ]; then
