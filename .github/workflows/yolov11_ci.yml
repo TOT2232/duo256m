@@ -69,18 +69,52 @@ jobs:
 
       - name: Download YOLOv11 cvimodel
         run: |
+          rm -rf yolo11-obiect-dection
           git clone https://github.com/zwyzwm/yolo11-obiect-dection.git
 
       - name: Download test image
         run: |
+          rm -f test.jpg
           wget https://ultralytics.com/images/zidane.jpg -O test.jpg
 
       - name: Collect artifacts
         run: |
+          rm -rf artifacts
           mkdir -p artifacts
           cp cvitek-tdl-sdk-sg200x/sample/cvi_yolo/sample_yolov8 artifacts/
           cp yolo11-obiect-dection/yolo11n_cv181x_int8_sym.cvimodel artifacts/
           cp test.jpg artifacts/
+
+      - name: Deploy files to Milk-V Duo
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 192.168.42.1 >> ~/.ssh/known_hosts
+          scp artifacts/sample_yolov8 artifacts/test.jpg root@192.168.42.1:/root/
+          scp artifacts/yolo11n_cv181x_int8_sym.cvimodel root@192.168.42.1:/root/
+
+      - name: Run inference on Milk-V Duo
+        run: |
+          ssh root@192.168.42.1 "
+            cd /root &&
+            export LD_LIBRARY_PATH='/mnt/system/lib' &&
+            chmod +x sample_yolov8 &&
+            ./sample_yolov8 ./yolo11n_cv181x_int8_sym.cvimodel test.jpg > result.log 2>&1 &&
+            cat result.log
+          "
+
+      - name: Retrieve result log
+        run: |
+          scp root@192.168.42.1:/root/result.log ./result.log
+          
+      - name: Check inference result
+        run: |
+          grep "objnum:" result.log
+
+      - name: Upload result log
+        uses: actions/upload-artifact@v4
+        with:
+          name: yolo-inference-log
+          path: result.log
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
