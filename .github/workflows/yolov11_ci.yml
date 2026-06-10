@@ -1,0 +1,78 @@
+name: RuyiSDK YOLOv11 Duo256M CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-yolov11:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git make build-essential wget
+
+      - name: Install RuyiSDK
+        run: |
+          wget https://mirror.iscas.ac.cn/ruyisdk/ruyi/tags/0.47.0/ruyi-0.47.0.amd64
+          chmod +x ruyi-0.47.0.amd64
+          sudo cp ruyi-0.47.0.amd64 /usr/local/bin/ruyi
+          ruyi --version
+
+      - name: Update Ruyi repository
+        run: |
+          ruyi update
+
+      - name: Install Duo 256M toolchain
+        run: |
+          ruyi install gnu-milkv-milkv-duo-musl-bin
+
+      - name: Create Ruyi virtual environment
+        run: |
+          ruyi venv -t gnu-milkv-milkv-duo-musl-bin generic milkv-venv
+
+      - name: Verify toolchain
+        run: |
+          source milkv-venv/bin/ruyi-activate
+          which riscv64-unknown-linux-musl-gcc
+          riscv64-unknown-linux-musl-gcc --version
+
+      - name: Clone TDL SDK
+        run: |
+          git clone https://github.com/milkv-duo/cvitek-tdl-sdk-sg200x.git
+
+      - name: Build sample_yolov8 for YOLOv11
+        run: |
+          source milkv-venv/bin/ruyi-activate
+          cd cvitek-tdl-sdk-sg200x/sample/cvi_yolo
+          make sample_yolov8 \
+            KERNEL_ROOT=$HOME/cvitek-tdl-sdk-sg200x/sample \
+            MW_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/middleware/v2 \
+            TPU_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/tpu \
+            IVE_PATH=$HOME/cvitek-tdl-sdk-sg200x/sample/3rd/middleware/v2 \
+            CHIP=CV181X \
+            SDK_VER=musl_riscv64
+
+      - name: Download YOLOv11 cvimodel
+        run: |
+          git clone https://github.com/zwyzwm/yolo11-obiect-dection.git
+
+      - name: Download test image
+        run: |
+          wget https://ultralytics.com/images/zidane.jpg -O test.jpg
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp cvitek-tdl-sdk-sg200x/sample/cvi_yolo/sample_yolov8 artifacts/
+          cp yolo11-obiect-dection/yolo11n_cv181x_int8_sym.cvimodel artifacts/
+          cp test.jpg artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yolov11-duo256m-runtime-files
+          path: artifacts/
