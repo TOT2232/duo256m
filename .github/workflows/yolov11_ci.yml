@@ -50,6 +50,7 @@ jobs:
 
       - name: Clone TDL SDK
         run: |
+          rm -rf cvitek-tdl-sdk-sg200x
           git clone https://github.com/milkv-duo/cvitek-tdl-sdk-sg200x.git
 
       - name: Build sample_yolov8 for YOLOv11
