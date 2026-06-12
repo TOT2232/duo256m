@@ -1,0 +1,51 @@
+name: HIL Test (Run Bundle on Milk-V Duo)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  run-on-board:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 192.168.42.1 >> ~/.ssh/known_hosts
+
+      - name: Upload bundle to board
+        run: |
+          ssh root@192.168.42.1 "rm -rf /root/hil_test && mkdir -p /root/hil_test"
+          scp -r test_bundle/* root@192.168.42.1:/root/hil_test/
+
+      - name: Run bundle on board
+        run: |
+          ssh root@192.168.42.1 '
+            cd /root/hil_test
+
+            echo "===== Start Running ====="
+
+            chmod +x run.sh
+            chmod +x ./* || true
+
+            export LD_LIBRARY_PATH="/mnt/system/lib:$LD_LIBRARY_PATH"
+
+            ./run.sh > result.log 2>&1
+
+            echo "===== Output ====="
+            cat result.log
+          '
+
+      - name: Retrieve log
+        run: |
+          scp root@192.168.42.1:/root/hil_test/result.log ./result.log
+
+      - name: Upload log
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil-test-log
+          path: result.log
